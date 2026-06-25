@@ -35,6 +35,17 @@ public class Row : MonoBehaviour
     private int _currentIndex;
     private Coroutine _spinRoutine;
 
+
+    void OnValidate()
+    {
+        // Runs in the editor whenever a value changes in the Inspector,
+        // and also right after the script compiles — lets you see spacing
+        // without entering Play Mode.
+        if (_symbols == null || _symbols.Length == 0) return;
+
+        PositionChildrenEvenly();
+    }
+
     void Start()
     {
         PositionChildrenEvenly();
@@ -123,5 +134,37 @@ public class Row : MonoBehaviour
     private void OnDisable()
     {
         GameController.HandlePulled -= StartRotating;
+    }
+
+    private void OnDrawGizmos()
+    {
+        float x = transform.position.x;
+
+        // Top point — where index 0 sits.
+        Vector3 topPoint = new Vector3(x, _topY, transform.position.z);
+        Gizmos.color = Color.green;
+        Gizmos.DrawSphere(topPoint, 0.15f);
+        Gizmos.DrawLine(topPoint + Vector3.left * 0.5f, topPoint + Vector3.right * 0.5f);
+
+        // Bottom point — derived from how many symbols you have, not hand-typed,
+        // so it always matches what SnapToIndex would actually produce.
+        int count = (_symbols != null && _symbols.Length > 0) ? _symbols.Length : 1;
+        float bottomY = _topY - ((count - 1) * _slotHeight);
+        Vector3 bottomPoint = new Vector3(x, bottomY, transform.position.z);
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere(bottomPoint, 0.15f);
+        Gizmos.DrawLine(bottomPoint + Vector3.left * 0.5f, bottomPoint + Vector3.right * 0.5f);
+
+        // Connecting line between them for a quick visual span check.
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(topPoint, bottomPoint);
+
+        // Every individual symbol slot in between, so you can see exact spacing.
+        Gizmos.color = Color.cyan;
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 p = new Vector3(x, _topY - (i * _slotHeight), transform.position.z);
+            Gizmos.DrawWireSphere(p, 0.08f);
+        }
     }
 }
