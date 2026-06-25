@@ -4,13 +4,14 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 [Serializable]
 public struct PayoutRule
 {
     public SlotSymbol Symbol;
     public int MatchCount;
-    public int Payout; // base payout, multiplied by the chosen bet tier
+    public int Payout; 
 }
 
 public enum BetTier
@@ -128,7 +129,24 @@ public class GameController : MonoBehaviour
 
             _prizeText.enabled = true;
             _prizeText.text = $"You won {prize} coins!";
+
+            if (HasThreeOfAKind())
+            {
+                SceneManager.LoadScene("WinScene");
+                return;
+            }
+
+            if (_coinManager.CurrentCoins <= 0)
+            {
+                SceneManager.LoadScene("LostScene");
+            }
         }
+    }
+
+    private bool HasThreeOfAKind()
+    {
+        return _rows[0]._stoppedSlot == _rows[1]._stoppedSlot
+            && _rows[1]._stoppedSlot == _rows[2]._stoppedSlot;
     }
 
     private int CalculatePrize()
