@@ -10,7 +10,13 @@ public struct PayoutRule
 {
     public SlotSymbol Symbol;
     public int MatchCount;
-    public int Payout;
+    public int Payout; // base payout, multiplied by the chosen bet tier
+}
+
+public enum BetTier
+{
+    Low,
+    High
 }
 
 public class GameController : MonoBehaviour
@@ -24,6 +30,19 @@ public class GameController : MonoBehaviour
 
     [SerializeField] private PayoutRule[] _payoutRules;
 
+    [SerializeField] private CoinManager _coinManager;
+
+    [Header("Bet Tiers")]
+    [SerializeField] private int _lowBetCost = 5;
+    [SerializeField] private int _highBetCost = 15;
+    [SerializeField] private int _lowBetMultiplier = 1;
+    [SerializeField] private int _highBetMultiplier = 3;
+
+    [Header("Audio")]
+    [SerializeField] private AudioSource _audioSource;
+    [SerializeField] private AudioClip _leverPullClip;
+
+    private BetTier _selectedBet = BetTier.Low;
     private int _stoppedRowCount;
     private bool _spinInProgress;
 
@@ -51,6 +70,14 @@ public class GameController : MonoBehaviour
         }
     }
 
+    public void SelectBet(BetTier tier)
+    {
+        _selectedBet = tier;
+    }
+
+    private int CurrentBetCost => _selectedBet == BetTier.Low ? _lowBetCost : _highBetCost;
+    private int CurrentBetMultiplier => _selectedBet == BetTier.Low ? _lowBetMultiplier : _highBetMultiplier;
+
     private IEnumerator PullHandle()
     {
         if (Mouse.current == null)
@@ -60,21 +87,28 @@ public class GameController : MonoBehaviour
         Ray ray = _mainCamera.ScreenPointToRay(mouseScreenPos);
         RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction);
 
-        if (hit.collider != null)
+        if (hit.collider != null && hit.collider.CompareTag("Handle"))
         {
-            if (hit.collider.CompareTag("Handle"))
+            if (!_coinManager.TrySpend(CurrentBetCost))
             {
-                _spinInProgress = true;
-                _stoppedRowCount = 0;
-                _prizeText.enabled = false;
-
-                HandlePulled.Invoke();
-                _slotMachineAnimator.SetBool("machineUsed", true);
-
-                yield return new WaitForSeconds(0.5f);
-
-                _slotMachineAnimator.SetBool("machineUsed", false);
+                yield break;
             }
+
+            if (_audioSource != null && _leverPullClip != null)
+            {
+                _audioSource.PlayOneShot(_leverPullClip);
+            }
+
+            _spinInProgress = true;
+            _stoppedRowCount = 0;
+            _prizeText.enabled = false;
+
+            HandlePulled.Invoke();
+            _slotMachineAnimator.SetBool("machineUsed", true);
+
+            yield return new WaitForSeconds(0.5f);
+
+            _slotMachineAnimator.SetBool("machineUsed", false);
         }
     }
 
@@ -85,7 +119,12 @@ public class GameController : MonoBehaviour
         if (_stoppedRowCount >= _rows.Length)
         {
             _spinInProgress = false;
-            int prize = CalculatePrize();
+            int prize = CalculatePrize() * CurrentBetMultiplier;
+
+            if (prize > 0)
+            {
+                _coinManager.Award(prize);
+            }
 
             _prizeText.enabled = true;
             _prizeText.text = $"You won {prize} coins!";

@@ -13,7 +13,6 @@ public enum SlotSymbol
 public class Row : MonoBehaviour
 {
     [Header("Strip Setup")]
-    [Tooltip("Symbols in strip order, top to bottom. Index 0 sits at _topY.")]
     [SerializeField] private SlotSymbol[] _symbols;
     [SerializeField] private float _slotHeight = 2.0f;
     [SerializeField] private float _topY = 6.8f;
@@ -23,6 +22,10 @@ public class Row : MonoBehaviour
     [SerializeField] private int _minStepsBeyondFullSpin = 60;
     [SerializeField] private int _maxStepsBeyondFullSpin = 100;
     [SerializeField] private AnimationCurve _spinEase = AnimationCurve.EaseInOut(0, 0.025f, 1, 0.2f);
+
+    [Header("Audio")]
+    [SerializeField] private AudioSource _audioSource;
+    [SerializeField] private AudioClip _spinLoopClip;
 
     public bool _rowStopped { get; private set; } = true;
     public SlotSymbol _stoppedSlot { get; private set; }
@@ -34,12 +37,22 @@ public class Row : MonoBehaviour
 
     void Start()
     {
-        // Snap to a valid starting index/position based on current transform.
+        PositionChildrenEvenly();
+
         _currentIndex = PositionToNearestIndex(transform.position.y);
-        SnapToIndex(_currentIndex);
         _stoppedSlot = _symbols[_currentIndex];
 
         GameController.HandlePulled += StartRotating;
+    }
+
+    private void PositionChildrenEvenly()
+    {
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            float localY = -i * _slotHeight;
+            child.localPosition = new Vector3(0f, localY, child.localPosition.z);
+        }
     }
 
     private void StartRotating()
@@ -56,7 +69,14 @@ public class Row : MonoBehaviour
     {
         _rowStopped = false;
 
-        int fullSpinSteps = _symbols.Length; // one full loop of the strip
+        if (_audioSource != null && _spinLoopClip != null)
+        {
+            _audioSource.clip = _spinLoopClip;
+            _audioSource.loop = true;
+            _audioSource.Play();
+        }
+
+        int fullSpinSteps = _symbols.Length;
         int extraSteps = UnityEngine.Random.Range(_minStepsBeyondFullSpin, _maxStepsBeyondFullSpin + 1);
         int totalSteps = fullSpinSteps + extraSteps;
 
@@ -68,6 +88,11 @@ public class Row : MonoBehaviour
             float waitTime = _spinEase.Evaluate(t);
 
             yield return new WaitForSeconds(waitTime);
+        }
+
+        if (_audioSource != null)
+        {
+            _audioSource.Stop();
         }
 
         _stoppedSlot = _symbols[_currentIndex];
